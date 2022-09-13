@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates Kyndryl ConfigRecorder role
+Resources:
+  KyndrylConfigRecorderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aws-controltower-ConfigRecorderRole-customer-created
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - config.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSConfigRole'
+        - 'arn:aws:iam::aws:policy/ReadOnlyAccess'
+      Tags:
+        - Key: Purpose
+          Value: 'Kyndryl CT'

@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Enables config on member account
+Parameters:
+  ControlTowerHomeRegion:
+    Type: String
+    Description: Control Tower Home Region
+    Default: 'us-east-1'
+  OrganizationId:
+    Type: String
+    Description: AWS Organizations ID for the Control Tower.
+    Default: 'o-a4tlobvmc0'
+    AllowedPattern: '^[o][\-][a-z0-9]{10}$'
+    ConstraintDescription: The Org Id must be a 12 character string starting with o- and followed by 10 lower case alphanumeric characters
+    MinLength: 12
+    MaxLength: 12
+  OrgUnitId:
+    Type: String
+    Description: Organizational Unit of accounts to enable Config? Enter AWS Organizational Unit ID.
+    Default: 'ou-6ulx-srl6cycw'
+    AllowedPattern: '^[o][u][\-][a-z0-9]{4}[\-][a-z0-9]{8,}$'
+  SecurityAccountId:
+    Type: String
+    Description: Which account will be Config Admin account? Enter AWS Account ID.
+    Default: 413157014023
+    AllowedPattern: '^[0-9]{12}$'
+    ConstraintDescription: The Security Account ID must be a 12 character string.
+    MinLength: 12
+    MaxLength: 12
+  LogArchiveAccountId:
+    Type: String
+    Description: Control Tower Log Archive account? Enter AWS Account ID.
+    Default: 559816438515
+    AllowedPattern: '^[0-9]{12}$'
+    ConstraintDescription: The Security Account ID must be a 12 character string.
+    MinLength: 12
+    MaxLength: 12
+  S3SourceBucket:
+    Type: String
+    Description: S3 bucket for ConfigEnabler Lambda package
+    Default: 'org-sh-ops'
+  S3SourceKey1:
+    Type: String
+    Description: S3 object key for ConfigRecorder Role Template
+    Default: org_configrecorder.yaml  
+  S3SourceKey2:
+    Type: String
+    Description: S3 object key for ConfigEnabler Lambda package
+    Default: config_enabler.zip
+  RoleToAssume:
+    Type: String
+    Description: IAM role to be assumed in child accounts to enable GuardDuty. Default is AWSControlTowerExecution for a Control Tower environment.
+    Default: AWSControlTowerExecution
+Resources:
+  ConfigEnablerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCloudFormationFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSControlTowerServiceRolePolicy'
+      Policies:
+        - PolicyName: ConfigEnablerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'organizations:ListAccounts'
+                  - 'organizations:ListAccountsForParent'
+                  - 'organizations:ListChildren'
+                  - 'organizations:DescribeAccount'
+                  - 'organizations:ListParents'
+                  - 'organizations:ListRoots'
+                  - 'organizations:EnableAWSServiceAccess'
+                  - 'organizations:RegisterDelegatedAdministrator'
+                  - 'organizations:ListDelegatedAdministrators'
+                  - 'organizations:ListAWSServiceAccessForOrganization'
+                  - 'organizations:DescribeOrganization'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'aws:PrincipalOrgId': !Ref OrganizationId
+              - Effect: Allow
+                Action:
+                  organizations:DescribeOrganizationalUnit
+                Resource: !Sub 'arn:aws:organizations::${AWS::AccountId}:ou/${OrganizationId}/ou-*'            
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeRegions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:CreateServiceLinkedRole'
+                Resource: '*'
+                Condition:
+                  StringLike:
+                    'iam:AWSServiceName': 'config.amazonaws.com'
+              - Effect: Allow
+                Action:
+                  - 'sts:AssumeRole'
+                Resource: 
+                  - !Sub 'arn:aws:iam::*:role/${RoleToAssume}'
+                  - !Sub 'arn:aws:iam::*:role/aws-controltower-ConfigRecorderRole-customer-created'
+                Condition:
+                  StringEquals:
+                    'aws:PrincipalOrgId': !Ref OrganizationId
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*'
+  ConfigEnablerLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - ConfigEnablerRole
+    Properties:
+      Handler: 'config_enabler.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey2
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          org_id: !Ref OrganizationId
+          org_unit_id: !Ref OrgUnitId
+          audit_account: !Ref SecurityAccountId
+          logarchive_account: !Ref LogArchiveAccountId
+          ct_home_region: !Ref ControlTowerHomeRegion
+          assume_role: !Ref RoleToAssume
+          S3Bucket: !Ref S3SourceBucket
+          S3Key: !Ref S3SourceKey1
+          log_level: INFO
+

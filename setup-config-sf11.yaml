@@ -1,0 +1,271 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Modifies AWS Config resources on member account
+Parameters:
+  OrganizationId:
+    Type: String
+    Description: AWS Organizations ID for the Control Tower.
+    Default: 'o-a4tlobvmc0'
+    AllowedPattern: '^[o][\-][a-z0-9]{10}$'
+  S3SourceBucket:
+    Type: String
+    Description: S3 bucket for ConfigEnabler Lambda package
+    Default: 'org-sh-ops'
+  S3SourceKey1:
+    Type: String
+    Description: S3 object key for ConfigRecorder Role Template
+    Default: org_configrecorder.yaml  
+  S3SourceKey2:
+    Type: String
+    Description: S3 object key for Verify Cloud Trails Lambda package
+    Default: verify_cloudtrails.zip
+  S3SourceKey3:
+    Type: String
+    Description: S3 object key for Verify Config Resources Lambda package
+    Default: verify_config_resources.zip
+  S3SourceKey4:
+    Type: String
+    Description: S3 object key for Config Recorder Lambda package
+    Default: modify_config_recorder.zip
+  S3SourceKey5:
+    Type: String
+    Description: S3 object key for Delivery Channel Lambda package
+    Default: modify_delivery_channel.zip
+  S3SourceKey6:
+    Type: String
+    Description: S3 object key for Aggregation Authorization Lambda package
+    Default: modify_aggr_authorizations.zip
+  S3SourceKey7:
+    Type: String
+    Description: S3 Object key for StateMachine definition
+    Default: start_config_recorder.zip
+  S3SourceKey8:
+    Type: String
+    Description: S3 Object key for StateMachine definition
+    Default: modify_config_sm4.json
+  RoleToAssume:
+    Type: String
+    Description: IAM role to be assumed in child accounts to enable GuardDuty. Default is AWSControlTowerExecution for a Control Tower environment.
+    Default: AWSControlTowerExecution
+Resources:
+  ModifyConfigEnablerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSCloudFormationFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSControlTowerServiceRolePolicy'
+      Policies:
+        - PolicyName: ModifyConfigEnablerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  organizations:DescribeOrganizationalUnit
+                Resource: !Sub 'arn:aws:organizations::${AWS::AccountId}:ou/${OrganizationId}/ou-*'            
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeRegions
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:CreateServiceLinkedRole'
+                Resource: '*'
+                Condition:
+                  StringLike:
+                    'iam:AWSServiceName': 'config.amazonaws.com'
+              - Effect: Allow
+                Action:
+                  - 'sts:AssumeRole'
+                Resource: 
+                  - !Sub 'arn:aws:iam::*:role/${RoleToAssume}'
+                  - !Sub 'arn:aws:iam::*:role/aws-controltower-ConfigRecorderRole-customer-created'
+                Condition:
+                  StringEquals:
+                    'aws:PrincipalOrgId': !Ref OrganizationId
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/AWSCloudFormationStackSetAdministrationRole'
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:log-stream:*'
+  VerifyCloudTrailsLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: VerifyCloudTrails
+      Handler: 'verify_cloudtrails.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey2
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  VerifyConfigResourcesLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: VerifyConfigResources
+      Handler: 'verify_config_resources.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey3
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  ModifyConfigRecorderLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: ModifyConfigRecorder
+      Handler: 'modify_config_recorder.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey4
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  ModifyDeliveryChannelLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: ModifyDeliveryChannel
+      Handler: 'modify_delivery_channel.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey5
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  ModifyAggrAuthorizationLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: ModifyAggrAuthorization
+      Handler: 'modify_aggr_authorizations.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey6
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  StartConfigRecorderLambda:
+    Type: AWS::Lambda::Function
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ModifyConfigEnablerRole
+    Properties:
+      FunctionName: StartConfigRecorder
+      Handler: 'start_config_recorder.lambda_handler'
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ModifyConfigEnablerRole}'
+      Code:
+        S3Bucket: !Ref S3SourceBucket
+        S3Key: !Ref S3SourceKey7
+      Runtime: python3.8
+      MemorySize: 256
+      Timeout: 900
+      Environment:
+        Variables:
+          log_level: INFO
+  ModifyConfigEnablerSMExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - 'states.amazonaws.com'
+              Action:
+                - 'sts:AssumeRole'
+        Path: '/'
+        Policies:
+          - PolicyName: ModifyConfigEnablerPolicy
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - 'lambda:InvokeFunction'
+                  Resource:
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:VerifyCloudTrails:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:VerifyConfigResources:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyConfigRecorder:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyDeliveryChannel:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyAggrAuthorization:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:StartConfigRecorder:*'
+                - Effect: Allow
+                  Action:
+                    - 'lambda:InvokeFunction'
+                  Resource:
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:VerifyCloudTrails'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:VerifyConfigResources'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyConfigRecorder'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyDeliveryChannel'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:ModifyAggrAuthorization'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:StartConfigRecorder'
+  ModifyConfigEnablerSM:
+    Type: AWS::StepFunctions::StateMachine
+    DependsOn:
+      - VerifyCloudTrailsLambda
+      - VerifyConfigResourcesLambda
+      - ModifyConfigRecorderLambda
+      - ModifyDeliveryChannelLambda
+      - ModifyAggrAuthorizationLambda
+      - StartConfigRecorderLambda
+      - ModifyConfigEnablerSMExecRole
+    Properties:
+      StateMachineType: 'STANDARD'
+      DefinitionS3Location:
+        Bucket: !Ref S3SourceBucket
+        Key: !Ref S3SourceKey8
+      RoleArn: !GetAtt ModifyConfigEnablerSMExecRole.Arn
+

@@ -1,0 +1,305 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "VerifyCloudTrails",
+  "States": {
+    "VerifyCloudTrails": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:VerifyCloudTrails:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "MapOfCloudTrails"
+    },
+    "MapOfCloudTrails": {
+      "Type": "Map",
+      "Iterator": {
+        "StartAt": "Choice",
+        "States": {
+          "Choice": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Not": {
+                  "Variable": "$.trail_count",
+                  "NumericLessThan": 5
+                },
+                "Next": "TrailLimitCheckFailed"
+              }
+            ],
+            "Default": "Pass"
+          },
+          "TrailLimitCheckFailed": {
+            "Type": "Fail",
+            "Error": "CloudTrailLimitCheckFailed",
+            "Cause": "Cloud Trails Limit reached on Account"
+          },
+          "Pass": {
+            "Type": "Pass",
+            "Next": "VerifyConfigResources"
+          },
+          "VerifyConfigResources": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload.body",
+            "Parameters": {
+              "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:VerifyConfigResources:$LATEST",
+              "Payload": {
+                "org_id.$": "$.org_id",
+                "org_unit_id.$": "$.org_unit_id",
+                "ct_home_region.$": "$.ct_home_region",
+                "s3_bucket.$": "$.s3_bucket",
+                "s3_key.$": "$.s3_key",
+                "member_account.$": "$.member_account",
+                "member_region.$": "$.member_region",
+                "logarchive_account.$": "$.logarchive_account",
+                "audit_account.$": "$.audit_account",
+                "assume_role.$": "$.assume_role"
+              }
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "ReportResourcesOptional"
+          },
+          "ReportResourcesOptional": {
+            "Type": "Pass",
+            "Next": "ModifyConfigRecorder"
+          },
+          "ModifyConfigRecorder": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload.body",
+            "Parameters": {
+              "Payload": {
+                "org_id.$": "$.org_id",
+                "org_unit_id.$": "$.org_unit_id",
+                "ct_home_region.$": "$.ct_home_region",
+                "s3_bucket.$": "$.s3_bucket",
+                "s3_key.$": "$.s3_key",
+                "member_account.$": "$.member_account",
+                "logarchive_account.$": "$.logarchive_account",
+                "audit_account.$": "$.audit_account",
+                "member_region.$": "$.member_region",
+                "assume_role.$": "$.assume_role"
+              },
+              "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:ModifyConfigRecorder:$LATEST"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "ConfigRecorderModified"
+          },
+          "ConfigRecorderModified": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Not": {
+                  "Variable": "$.modify_config_recorder_success",
+                  "BooleanEquals": true
+                },
+                "Next": "ConfigRecorderFailed"
+              }
+            ],
+            "Default": "ModifyDeliveryChannel"
+          },
+          "ConfigRecorderFailed": {
+            "Type": "Fail",
+            "Error": "ModifyConfigRecorderFailed",
+            "Cause": "Modification of Config Recorder on Account failed"
+          },
+          "ModifyDeliveryChannel": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload.body",
+            "Parameters": {
+              "Payload": {
+                "org_id.$": "$.org_id",
+                "org_unit_id.$": "$.org_unit_id",
+                "ct_home_region.$": "$.ct_home_region",
+                "s3_bucket.$": "$.s3_bucket",
+                "s3_key.$": "$.s3_key",
+                "member_account.$": "$.member_account",
+                "logarchive_account.$": "$.logarchive_account",
+                "audit_account.$": "$.audit_account",
+                "member_region.$": "$.member_region",
+                "assume_role.$": "$.assume_role"
+              },
+              "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:ModifyDeliveryChannel:$LATEST"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "DeliveryChannelModified"
+          },
+          "DeliveryChannelModified": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Not": {
+                  "Variable": "$.modify_delivery_channel_success",
+                  "BooleanEquals": true
+                },
+                "Next": "DeliveryChannelFailed"
+              }
+            ],
+            "Default": "ModifyAggrAuthorization"
+          },
+          "DeliveryChannelFailed": {
+            "Type": "Fail",
+            "Error": "ModifyDeliveryChannelFailed",
+            "Cause": "Modification of Delivery Channel on Account failed"
+          },
+          "ModifyAggrAuthorization": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload.body",
+            "Parameters": {
+              "Payload": {
+                "org_id.$": "$.org_id",
+                "org_unit_id.$": "$.org_unit_id",
+                "ct_home_region.$": "$.ct_home_region",
+                "s3_bucket.$": "$.s3_bucket",
+                "s3_key.$": "$.s3_key",
+                "member_account.$": "$.member_account",
+                "logarchive_account.$": "$.logarchive_account",
+                "audit_account.$": "$.audit_account",
+                "member_region.$": "$.member_region",
+                "assume_role.$": "$.assume_role"
+              },
+              "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:ModifyAggrAuthorization:$LATEST"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "AggrAuthorizationModified"
+          },
+          "AggrAuthorizationModified": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Not": {
+                  "Variable": "$.modify_aggr_authorizations_success",
+                  "BooleanEquals": true
+                },
+                "Next": "AggrAuthorizationFailed"
+              }
+            ],
+            "Default": "StartConfigRecorder"
+          },
+          "StartConfigRecorder": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload.body",
+            "Parameters": {
+              "Payload": {
+                "org_id.$": "$.org_id",
+                "org_unit_id.$": "$.org_unit_id",
+                "ct_home_region.$": "$.ct_home_region",
+                "s3_bucket.$": "$.s3_bucket",
+                "s3_key.$": "$.s3_key",
+                "member_account.$": "$.member_account",
+                "logarchive_account.$": "$.logarchive_account",
+                "audit_account.$": "$.audit_account",
+                "member_region.$": "$.member_region",
+                "assume_role.$": "$.assume_role"
+              },
+              "FunctionName": "arn:aws:lambda:us-east-1:538857479523:function:StartConfigRecorder:$LATEST"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException"
+                ],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 6,
+                "BackoffRate": 2
+              }
+            ],
+            "Next": "ConfigRecorderStarted"
+          },
+          "ConfigRecorderStarted": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Not": {
+                  "Variable": "$.start_config_recorder_success",
+                  "BooleanEquals": true
+                },
+                "Next": "StartConfigRecorderFailed"
+              }
+            ],
+            "Default": "ReportConfigResourcesOptional"
+          },
+          "ReportConfigResourcesOptional": {
+            "Type": "Pass",
+            "End": true
+          },
+          "StartConfigRecorderFailed": {
+            "Type": "Fail",
+            "Error": "StartConfigRecorderFailed",
+            "Cause": "Start of ConfigRecorder on Account failed"
+          },
+          "AggrAuthorizationFailed": {
+            "Type": "Fail",
+            "Error": "ModifyAggrAuthorizationFailed",
+            "Cause": "Modification of Aggregation Authorisation on Account failed"
+          }
+        }
+      },
+      "ItemsPath": "$.Payload.body.region_cloudtrails",
+      "MaxConcurrency": 1,
+      "End": true
+    }
+  }
+}
