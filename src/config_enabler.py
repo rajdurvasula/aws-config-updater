@@ -20,7 +20,7 @@ org_delivery_channel_name = 'aws-controltower-ConfigDeliveryChannel-customer-cre
 default_recorder_name = 'aws-controltower-ConfigRecorderRole'
 ct_log_bucket = 'aws-controltower-logs-{}-{}'
 topicArn = 'arn:aws:sns:{}:{}:aws-controltower-AllConfigNotifications'
-kyndryConfigRecorderRoleStackSetName = 'KyndrylConfigRecorderRole'
+kyndryConfigRecorderRoleStackSetName = 'MyOrgConfigRecorderRole'
 
 LOGGER = logging.getLogger()
 if 'log_level' in os.environ:
@@ -198,7 +198,7 @@ def create_configrecorder_role(ct_session, accountId, region, s3bucket, s3key):
     try:
         create_response = cf_client.create_stack_set(
             StackSetName=kyndryConfigRecorderRoleStackSetName,
-            Description='Create Kyndryl ConfigRecorder Role in member accounts',
+            Description='Create MyOrg ConfigRecorder Role in member accounts',
             TemplateURL=templateUrl,
             Capabilities=['CAPABILITY_NAMED_IAM'],
             PermissionModel='SERVICE_MANAGED',
@@ -433,7 +433,7 @@ def lambda_handler(event, context):
                 # AWSControlTowerExecutionRole
                 create_ct_exec_role(session, member_account_id, ct_region)
                 reset_stackinstance_check_count()
-                # KyndrylConfigRecorderRole
+                # MyOrgConfigRecorderRole
                 create_configrecorder_role(session, member_account_id, ct_region, s3bucket, s3key)
                 # Wait on Role creation
                 wait_on_stack(session, member_account_id, ct_region)

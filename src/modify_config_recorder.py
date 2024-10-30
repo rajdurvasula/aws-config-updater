@@ -19,7 +19,7 @@ org_delivery_channel_name = 'aws-controltower-ConfigDeliveryChannel-customer-cre
 default_recorder_name = 'aws-controltower-ConfigRecorderRole'
 ct_log_bucket = 'aws-controltower-logs-{}-{}'
 topicArn = 'arn:aws:sns:{}:{}:aws-controltower-AllConfigNotifications'
-kyndryConfigRecorderRoleStackSetName = 'KyndrylConfigRecorderRole'
+kyndryConfigRecorderRoleStackSetName = 'MyOrgConfigRecorderRole'
 
 LOGGER = logging.getLogger()
 if 'log_level' in os.environ:
@@ -235,7 +235,7 @@ def create_configrecorder_stackset(ct_session, master_account_id, s3bucket, s3ke
     try:
         create_response = cf_client.create_stack_set(
             StackSetName=kyndryConfigRecorderRoleStackSetName,
-            Description='Create Kyndryl ConfigRecorder Role in member accounts',
+            Description='Create MyOrg ConfigRecorder Role in member accounts',
             TemplateURL=templateUrl,
             Capabilities=['CAPABILITY_NAMED_IAM'],
             PermissionModel='SERVICE_MANAGED',

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Creates Kyndryl ConfigRecorder role
+Description: Creates MyOrg ConfigRecorder role
 Resources:
-  KyndrylConfigRecorderRole:
+  MyOrgConfigRecorderRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: aws-controltower-ConfigRecorderRole-customer-created
@@ -20,4 +20,4 @@ Resources:
         - 'arn:aws:iam::aws:policy/ReadOnlyAccess'
       Tags:
         - Key: Purpose
-          Value: 'Kyndryl CT'
+          Value: 'MyOrg CT'

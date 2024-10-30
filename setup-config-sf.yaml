@@ -141,7 +141,7 @@ Resources:
     DependsOn:
       - ConfigEnablerRole
     Properties:
-      FunctionName: SetupKyndrylConfigRecorder
+      FunctionName: SetupMyOrgConfigRecorder
       Handler: 'config_recorder.lambda_handler'
       Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ConfigEnablerRole}'
       Code:
@@ -167,7 +167,7 @@ Resources:
       DependsOn:
         - ConfigEnablerRole
       Properties:
-        FunctionName: SetupKyndrylDeliveryChannel
+        FunctionName: SetupMyOrgDeliveryChannel
         Handler: 'config_channel.lambda_handler'
         Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ConfigEnablerRole}'
         Code:
@@ -191,7 +191,7 @@ Resources:
       DependsOn:
         - ConfigEnablerRole
       Properties:
-        FunctionName: SetupKyndrylConfigAggregator
+        FunctionName: SetupMyOrgConfigAggregator
         Handler: 'config_aggregation.lambda_handler'
         Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${ConfigEnablerRole}'
         Code:
@@ -231,16 +231,16 @@ Resources:
                   Action:
                     - 'lambda:InvokeFunction'
                   Resource:
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylConfigRecorder:*'
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylDeliveryChannel:*'
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylConfigAggregator:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgConfigRecorder:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgDeliveryChannel:*'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgConfigAggregator:*'
                 - Effect: Allow
                   Action:
                     - 'lambda:InvokeFunction'
                   Resource:
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylConfigRecorder'
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylDeliveryChannel'
-                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupKyndrylConfigAggregator'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgConfigRecorder'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgDeliveryChannel'
+                    - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SetupMyOrgConfigAggregator'
   ConfigEnablerSM:
     Type: AWS::StepFunctions::StateMachine
     DependsOn:
